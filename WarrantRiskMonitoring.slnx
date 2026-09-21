@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/WarrantRisk.Api/WarrantRisk.Api.csproj" />
+    <Project Path="src/WarrantRisk.Domain/WarrantRisk.Domain.csproj" />
+    <Project Path="src/WarrantRisk.WinForms/WarrantRisk.WinForms.csproj" />
+  </Folder>
+</Solution>
