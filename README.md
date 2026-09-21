@@ -13,6 +13,69 @@ database/                    建表和測試資料
 
 我把計算放在 Domain 專案，這樣 API 和 WinForms 可以共用同一份公式，不用各寫一份。
 
+## 架構說明
+
+系統大致分成三層：
+
+```text
+WinForms 使用者介面
+        │ HTTP
+        ▼
+ASP.NET Core Web API
+        │ EF Core
+        ▼
+SQL Server / LocalDB
+```
+
+### WarrantRisk.WinForms
+
+這是使用者操作的桌面程式，負責：
+
+- 顯示權證清單和搜尋結果
+- 顯示選取權證的基本資料
+- 接收使用者輸入的標的股價
+- 輸入時即時計算理論價值和建議避險張數
+- 呼叫 API 儲存試算結果
+- 顯示最近 10 筆歷史紀錄
+
+WinForms 不直接連資料庫，所有查詢和儲存都透過 API 完成。
+
+### WarrantRisk.Api
+
+這是後端 API，負責：
+
+- 接收 WinForms 的查詢和試算請求
+- 從 `Warrant_Master` 查詢權證資料
+- 呼叫 Domain 的計算方法
+- 檢查標的股價是否大於 0
+- 將試算結果寫入 `Warrant_Trial_Log`
+- 回傳 JSON 給 WinForms
+
+真正寫入資料庫前，API 會重新計算一次，不直接相信前端送來的計算結果。
+
+### WarrantRisk.Domain
+
+這是共用的核心邏輯，放置：
+
+- `Warrant` 和 `TrialLog` 資料模型
+- `TrialRequest` 和 `TrialResult` DTO
+- `WarrantCalculator` 試算方法
+
+核心計算不依賴 WinForms 或 SQL Server，因此 API 和 WinForms 都能共用同一套規則。
+
+### 一次試算的流程
+
+```text
+1. 使用者在 WinForms 選取權證
+2. 輸入標的股價
+3. WinForms 使用 Domain 顯示即時預覽
+4. 使用者按下「儲存試算結果」
+5. WinForms 呼叫 POST /api/warrants/{id}/trials
+6. API 查詢權證並重新執行計算
+7. API 將結果寫入 Warrant_Trial_Log
+8. WinForms 重新載入最近 10 筆紀錄
+```
+
 ## 開發環境
 
 - Windows 10/11
