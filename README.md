@@ -35,8 +35,6 @@ API 啟動後，再開另一個 PowerShell：
 dotnet run --project .\src\WarrantRisk.WinForms
 ```
 
-如果目前已經切換到某個專案資料夾，就直接執行 `dotnet run`，不要再重複加 `src\...` 路徑。
-
 API 預設網址是 `http://localhost:5080`，連線設定在 `src/WarrantRisk.Api/appsettings.json`。
 
 ## API
