@@ -1,57 +1,75 @@
-# 權證發行風險監控與避險試算系統
+# 權證發行風險監控與避險試算
 
-本方案包含：
+這是一個用來練習權證試算流程的小型系統。畫面使用 WinForms，後端使用 ASP.NET Core Web API，資料放在 SQL Server / LocalDB。
 
-- `src/WarrantRisk.Domain`：Model、DTO 與以 `decimal` 實作的核心計算服務。
-- `src/WarrantRisk.Api`：ASP.NET Core Web API，使用 SQL Server 與 EF Core。
-- `src/WarrantRisk.WinForms`：.NET 8 WinForms 桌面前端，支援即時計算、儲存與歷史紀錄。
-- `database/01_schema_and_seed.sql`：建表與約 800 筆測試權證資料。
+## 專案內容
 
-## 環境需求
+```text
+src/WarrantRisk.Domain       權證模型與試算公式
+src/WarrantRisk.Api          API、資料庫存取
+src/WarrantRisk.WinForms     Windows 桌面畫面
+database/                    建表和測試資料
+```
+
+我把計算放在 Domain 專案，這樣 API 和 WinForms 可以共用同一份公式，不用各寫一份。
+
+## 開發環境
 
 - Windows 10/11
 - .NET 8 SDK
-- SQL Server 2019+（LocalDB 亦可）
+- SQL Server LocalDB（執行個體名稱：`MSSQLLocalDB`）
 
-## 建置與執行
+## 第一次執行
 
-1. 建立資料庫並產生測試資料：
+請在方案根目錄，也就是有 `WarrantRiskMonitoring.slnx` 的資料夾執行：
 
-   ```powershell
-   sqlcmd -S "(localdb)\MSSQLLocalDB" -E -i .\database\01_schema_and_seed.sql
-   ```
+```powershell
+sqllocaldb start MSSQLLocalDB
+sqlcmd -S "(localdb)\MSSQLLocalDB" -E -i .\database\01_schema_and_seed.sql
+dotnet run --project .\src\WarrantRisk.Api
+```
 
-   若 LocalDB 尚未啟動，可先執行 `sqllocaldb start MSSQLLocalDB`。若該指令回報 instance registry configuration 錯誤，請以一般使用者權限重新建立或修復 SQL Server LocalDB，再重試上述指令。
+API 啟動後，再開另一個 PowerShell：
 
-2. 本方案預設使用 Windows LocalDB `MSSQLLocalDB`。如 SQL Server 實例不同，再修改 `src/WarrantRisk.Api/appsettings.json` 的 `DefaultConnection`。
+```powershell
+dotnet run --project .\src\WarrantRisk.WinForms
+```
 
-3. 啟動 API：
+如果目前已經切換到某個專案資料夾，就直接執行 `dotnet run`，不要再重複加 `src\...` 路徑。
 
-   ```powershell
-   dotnet run --project .\src\WarrantRisk.Api
-   ```
-
-   預設網址為 `http://localhost:5080`。
-
-4. 啟動 WinForms（另開 PowerShell）：
-
-   ```powershell
-   dotnet run --project .\src\WarrantRisk.WinForms
-   ```
+API 預設網址是 `http://localhost:5080`，連線設定在 `src/WarrantRisk.Api/appsettings.json`。
 
 ## API
 
-- `GET /api/warrants?keyword=2330`
-- `POST /api/warrants/{warrantId}/trials`
-- `GET /api/warrants/{warrantId}/trials/recent`
+```text
+GET  /api/warrants?keyword=W000
+GET  /api/warrants/{id}
+POST /api/warrants/{id}/trials
+GET  /api/warrants/{id}/trials/recent
+```
 
-`MarketPrice <= 0` 會回傳 HTTP 400，且不會寫入 `Warrant_Trial_Log`。所有金融計算及 DTO 金融欄位均採 `decimal`。
+試算請求範例：
 
-## 計算規則
+```json
+{
+  "marketPrice": 250
+}
+```
 
-- CALL：`max(0, (MarketPrice - StrikePrice) * ConversionRatio)`
-- PUT：`max(0, (StrikePrice - MarketPrice) * ConversionRatio)`
-- `HedgeQty = PositionQty * ConversionRatio * Delta`
-- ITM/ATM/OTM Delta：`0.8 / 0.5 / 0.2`
+標的股價必須大於 0。API 會重新計算結果，確認無誤後才寫入試算紀錄。
 
-正式環境請再加入登入授權、HTTPS、輸入稽核、資料庫 migration 與風控權限控管。
+## 計算方式
+
+```text
+CALL 理論價 = max(0, (標的股價 - 履約價格) × 行使比例)
+PUT  理論價 = max(0, (履約價格 - 標的股價) × 行使比例)
+避險張數    = 庫存張數 × 行使比例 × Delta
+```
+
+本練習依題目指定的簡化規則使用 Delta：
+
+```text
+價內 0.8、價平 0.5、價外 0.2
+```
+
+目前的 SQL 腳本會刪除後重新建立兩張表，適合開發環境初始化，不要直接拿去正式環境執行。正式環境還需要登入權限、HTTPS、Migration、稽核紀錄和正式的資料庫部署流程。
